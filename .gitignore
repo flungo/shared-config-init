@@ -1,0 +1,34 @@
+# Ignore everything, we will explicitly declare what to include
+*
+
+# Root directory files
+!/.gitignore
+!/LICENSE.txt
+!/README.md
+!/init
+!/exclude-default
+
+# /usr/local/bin/shared-config-init
+!/usr/
+/usr/*
+!/usr/local/
+/usr/local/*
+!/usr/local/bin/
+/usr/local/bin/*
+!/usr/local/bin/shared-config-init
+
+# /etc/systemd/system/shared-config-init.service*
+!/etc/
+/etc/*
+!/etc/systemd/
+/etc/systemd/*
+!/etc/systemd/system/
+/etc/systemd/system/*
+!/etc/systemd/system/shared-config-init.service
+!/etc/systemd/system/shared-config-init.service.d/
+/etc/systemd/system/shared-config-init.service.d/*
+!/etc/systemd/system/shared-config-init.service.d/before-shutdown.conf
+!/etc/systemd/system/shared-config-init.service.d/reload-systemd.conf
+!/etc/systemd/system/poweroff.target.wants/
+/etc/systemd/system/poweroff.target.wants/*
+!/etc/systemd/system/poweroff.target.wants/shared-config-init.service

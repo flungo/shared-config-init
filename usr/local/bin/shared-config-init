@@ -1,0 +1,72 @@
+#!/bin/bash -e
+
+# Find where the script is stored and make that the working directory.
+SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(dirname "${SCRIPT}")")")")"
+cd "${SCRIPT_DIR}"
+
+# Store the exit code of the script
+EXIT_CODE=0
+
+# Set up the exclude files
+EXCLUDE_FILE="./exclude"
+EXCLUDE_DEFAULT_FILE="${EXCLUDE_FILE}-default"
+EXCLUDE_LOCAL_FILE="${EXCLUDE_FILE}.$(hostname)"
+EXCLUDE_ARGS=()
+add_exclude() {
+	if [ $# -lt 1 ]; then
+		>&2 echo "add_exclude requires one argument"
+		return 1
+	fi
+	[ "${VERBOSE,,}" == "true" ] && echo "Excluding: $1" ||:
+	EXCLUDE_ARGS+=('-not' '-path' "$1")
+}
+load_excludes() {
+	if [ $# -lt 1 ]; then
+		>&2 echo "load_excludes requires one argument"
+		return 1
+	fi
+	[ "${VERBOSE,,}" == "true" ] && echo "Loading excludes from file: $1" ||:
+	local line
+	while read -r line; do
+		# Ignore comments and blank lines
+		if [ -z "${line}" ] || [ "${line:0:1}" == "#" ]; then
+			continue
+		fi
+		add_exclude "$line"
+	done < "$1"
+}
+load_excludes "${EXCLUDE_DEFAULT_FILE}"
+if [ -f "${EXCLUDE_FILE}" ]; then
+	load_excludes "${EXCLUDE_FILE}"
+fi
+if [ -f "${EXCLUDE_LOCAL_FILE}" ]; then
+	load_excludes "${EXCLUDE_LOCAL_FILE}"
+fi
+
+# Find the files
+while read -r SOURCE; do
+	# Let's be extra cautious rather than assuming.
+	if [ "${SOURCE:0:2}" != "./" ]; then
+		# Unexpected state: fail if this state is entered.
+		[ "${VERBOSE,,}" == "true" ] && >&2 echo "Unexpected first character of find response: ${SOURCE}" ||:
+		exit 1
+	fi
+	DESTINATION="${SOURCE:1}"
+	SOURCE="$(readlink -f "${SOURCE}")"
+	if [ -e "${DESTINATION}" ]; then
+		if [ -L "${DESTINATION}" ] && [ "$(readlink "${DESTINATION}")" == "${SOURCE}" ]; then
+			# Already set up
+			echo "(${DESTINATION}) already configured: skipping."
+		else
+			>&2 echo "(${DESTINATION}) already exists and does not link to the expected location"
+			EXIT_CODE=1
+		fi
+		continue
+	fi
+	[ "${VERBOSE,,}" == "true" ] && echo "Installing: ${DESTINATION}" ||:
+	mkdir -p "$(dirname "${DESTINATION}")"
+	ln -s "${SOURCE}" "${DESTINATION}"
+done < <(find . -mindepth 2 -type f "${EXCLUDE_ARGS[@]}")
+
+exit "${EXIT_CODE}"
