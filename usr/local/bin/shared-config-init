@@ -1,9 +1,12 @@
 #!/bin/bash -e
 
-# Find where the script is stored and make that the working directory.
+# Find where the script is stored.
 SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(dirname "${SCRIPT}")")")")"
-cd "${SCRIPT_DIR}"
+
+# Get the config directory and make that the working directory
+CONFIG_DIR="${CONFIG_DIR:-${SCRIPT_DIR}}"
+cd "${CONFIG_DIR}"
 
 # Store the exit code of the script
 EXIT_CODE=0
