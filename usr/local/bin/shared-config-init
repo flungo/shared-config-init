@@ -57,7 +57,7 @@ while read -r SOURCE; do
 	if [ -e "${DESTINATION}" ]; then
 		if [ -L "${DESTINATION}" ] && [ "$(readlink "${DESTINATION}")" == "${SOURCE}" ]; then
 			# Already set up
-			echo "(${DESTINATION}) already configured: skipping."
+			[ "${VERBOSE,,}" == "true" ] && echo "(${DESTINATION}) already configured: skipping." ||:
 		else
 			>&2 echo "(${DESTINATION}) already exists and does not link to the expected location"
 			EXIT_CODE=1
