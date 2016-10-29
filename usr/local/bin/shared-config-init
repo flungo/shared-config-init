@@ -63,6 +63,14 @@ set_config_dir() {
 	CONFIG_DIR="$1"
 }
 
+set_config_dir() {
+	if [ -z "$1" ]; then
+		log "${VERBOSITY_ERROR}" "--root requires an argument."
+		exit 1
+	fi
+	INSTALL_ROOT="$1"
+}
+
 # Is debug enabled by environment variable?
 if [ "${DEBUG,,}" == 'true' ]; then
 	enable_debug
@@ -74,6 +82,7 @@ SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(dirname "${SCRIPT}")")")")"
 
 # Initialise configurable variables
 CONFIG_DIR="${CONFIG_DIR:-${SCRIPT_DIR}}"
+INSTALL_ROOT=""
 
 # Handle command line options
 while [ $# -gt 0 ]; do
@@ -88,6 +97,10 @@ while [ $# -gt 0 ]; do
 			enable_quiet
 			;;
 		-c|--config)
+			shift
+			set_config_dir "$1"
+			;;
+		-r|--root)
 			shift
 			set_config_dir "$1"
 			;;
@@ -106,10 +119,23 @@ fi
 
 # Get the config directory and make that the working directory
 if [ ! -d "${CONFIG_DIR}" ]; then
-	log "${VERBOSITY_ERROR}" "Config directory should be a valid directory"
+	log "${VERBOSITY_ERROR}" "Config directory is not a valid directory: ${CONFIG_DIR}"
 	exit 1
 fi
 cd "${CONFIG_DIR}"
+
+# Sanitise the INSTALL_ROOT
+INSTALL_ROOT="${INSTALL_ROOT:-/}"
+INSTALL_ROOT="$(readlink -f "${INSTALL_ROOT}")"
+if [ ! -d "${INSTALL_ROOT}" ]; then
+	log "${VERBOSITY_ERROR}" "Install root is not a valid directory: ${INSTALL_ROOT}"
+	exit 1
+fi
+if [ "${INSTALL_ROOT}" == '/' ]; then
+	# Root directory is the only directory that will have a trailing slash.
+	# We don't want this so get rid of it.
+	INSTALL_ROOT=''
+fi
 
 # Store the exit code of the script
 EXIT_CODE=0
@@ -158,7 +184,7 @@ while read -r SOURCE; do
 		log "${VERBOSITY_ERROR}" "Unexpected first character of find response: ${SOURCE}"
 		exit 1
 	fi
-	DESTINATION="${SOURCE:1}"
+	DESTINATION="${INSTALL_ROOT}${SOURCE:1}"
 	SOURCE="$(readlink -f "${SOURCE}")"
 	if [ -e "${DESTINATION}" ]; then
 		if [ -L "${DESTINATION}" ] && [ "$(readlink "${DESTINATION}")" == "${SOURCE}" ]; then
