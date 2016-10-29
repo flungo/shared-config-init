@@ -141,9 +141,14 @@ fi
 EXIT_CODE=0
 
 # Set up the exclude files
-EXCLUDE_FILE="./exclude"
+EXCLUDE_FILE="exclude"
 EXCLUDE_DEFAULT_FILE="${EXCLUDE_FILE}-default"
 EXCLUDE_LOCAL_FILE="${EXCLUDE_FILE}.$(hostname)"
+if [ ! -f "${EXCLUDE_DEFAULT_FILE}" ]; then
+	# If EXCLUDE_DEFAULT_FILE override does not exist in the CONFIG_DIR, use the
+	# one from the SCRIPT_DIR.
+	EXCLUDE_DEFAULT_FILE="${SCRIPT_DIR}/exclude-default"
+fi
 EXCLUDE_ARGS=()
 add_exclude() {
 	if [ $# -lt 1 ]; then
@@ -199,7 +204,7 @@ while read -r SOURCE; do
 	log "${VERBOSITY_NOTICE}" "Installing: ${DESTINATION}"
 	mkdir -p "$(dirname "${DESTINATION}")"
 	ln -s "${SOURCE}" "${DESTINATION}"
-done < <(find . -mindepth 2 -type f "${EXCLUDE_ARGS[@]}")
+done < <(find . -type f "${EXCLUDE_ARGS[@]}")
 
 if [ "${EXIT_CODE}" -ne 0 ]; then
 	log "${VERBOSITY_ERROR}" "Completed with warnings"
