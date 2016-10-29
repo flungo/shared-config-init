@@ -117,7 +117,3 @@ ln -s exclude.pc1 exclude.pc2
 ### I need to run a script after initialisation, how can I do this?
 
 The recomended method is to use this script to install a oneshot systemd unit that can run command you need. For example, if you were using this to synchronise your `/etc/locale.conf`, you can then create a systemd unit to run the command or script that is required after this script. Note that using this method would run the script after every reinitialisation of configs and would not run until after a reboot or `systemd daemon-reload`. Any functionality beyond this however, is outside the scope of what this script provides.
-
-## Caveats
-
-- Files cannot be installed into the root directory. This will not be fixed and is considered a feature and not a bug allowing the root directory of the shared-config folder to contain the configurations for the script. If profiles are implemented, this may be a way to mitigate this unless it is required to include profile configurations in the profiles root directory.
