@@ -3,5 +3,5 @@ Description=Initialise shared configurations onto this machine
 
 [Service]
 Type=oneshot
-Environment=VERBOSE=true
+Environment=VERBOSITY=4
 ExecStart=/usr/local/bin/shared-config-init

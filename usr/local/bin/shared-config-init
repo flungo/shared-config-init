@@ -1,11 +1,114 @@
 #!/bin/bash -e
 
+# Verbosity constants
+VERBOSITY_ERROR='0'   # Errors that cause program to quit immediately
+VERBOSITY_WARNING='1' # Errors that do not cause program to quit immediately
+VERBOSITY_NOTICE='2'  # A notable action taken by the script
+VERBOSITY_INFO='3'    # Information about script flow
+VERBOSITY_CONFIG='4'  # Information about configurations that have been applied
+VERBOSITY_DEBUG='5'   # Full debugging information
+
+# Default verbosity
+VERBOSITY="${VERBOSITY:-${VERBOSITY_WARNING}}"
+
+# Validate verbosity
+if ! [[ "${VERBOSITY}" =~ ^-?[0-9]+$ ]]; then
+	>&2 echo "VERBOSITY is not a number: ${VERBOSITY}"
+	exit 1;
+fi
+
+# Logging function
+log() {
+	if [ $# -lt 2 ]; then
+		>&2 echo "Not enough arguments to log function"
+		return 1
+	fi
+	local level="$1"
+	shift
+	local msg="$*"
+	if [ "${level}" -le "${VERBOSITY}" ]; then
+		if [ "${level}" -le "${VERBOSITY_WARNING}" ]; then
+			>&2 echo "${msg}"
+		else
+			echo "${msg}"
+		fi
+	fi
+}
+
+# Option handlers handlers
+enable_debug() {
+	set -x
+	DEBUG='true'
+	VERBOSITY="${VERBOSITY_DEBUG}"
+}
+
+enable_quiet() {
+	if [ ${DEBUG,,} == 'true' ]; then
+		log "${VERBOSITY_ERROR}" "Cannot enable quite when debug is also enabled."
+		exit 1
+	fi
+	# Only log fatal errors
+	VERBOSITY="${VERBOSITY_ERROR}"
+}
+
+increase_verbosity() {
+	((VERBOSITY++))
+}
+
+set_config_dir() {
+	if [ -z "$1" ]; then
+		log "${VERBOSITY_ERROR}" "--config requires an argument."
+		exit 1
+	fi
+	CONFIG_DIR="$1"
+}
+
+# Is debug enabled by environment variable?
+if [ "${DEBUG,,}" == 'true' ]; then
+	enable_debug
+fi
+
 # Find where the script is stored.
 SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$(dirname "$(dirname "$(dirname "${SCRIPT}")")")")"
 
-# Get the config directory and make that the working directory
+# Initialise configurable variables
 CONFIG_DIR="${CONFIG_DIR:-${SCRIPT_DIR}}"
+
+# Handle command line options
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--debug)
+			enable_debug
+			;;
+		-v|--verbose)
+			increase_verbosity
+			;;
+		-q|--quiet)
+			enable_quiet
+			;;
+		-c|--config)
+			shift
+			set_config_dir "$1"
+			;;
+		*)
+			log "${VERBOSITY_ERROR}" "Unrecognised option: $1"
+			exit 1
+			;;
+	esac
+	shift
+done
+
+# If verbosity is high enough, enable full debugging
+if [ "${VERBOSITY}" -ge "${VERBOSITY_DEBUG}" ]; then
+	enable_debug
+fi
+
+# Get the config directory and make that the working directory
+if [ ! -d "${CONFIG_DIR}" ]; then
+	log "${VERBOSITY_ERROR}" "Config directory should be a valid directory"
+	exit 1
+fi
 cd "${CONFIG_DIR}"
 
 # Store the exit code of the script
@@ -18,18 +121,18 @@ EXCLUDE_LOCAL_FILE="${EXCLUDE_FILE}.$(hostname)"
 EXCLUDE_ARGS=()
 add_exclude() {
 	if [ $# -lt 1 ]; then
-		>&2 echo "add_exclude requires one argument"
+		log "${VERBOSITY_ERROR}" "add_exclude requires one argument"
 		return 1
 	fi
-	[ "${VERBOSE,,}" == "true" ] && echo "Excluding: $1" ||:
+	log "${VERBOSITY_CONFIG}" "Excluding: $1"
 	EXCLUDE_ARGS+=('-not' '-path' "$1")
 }
 load_excludes() {
 	if [ $# -lt 1 ]; then
-		>&2 echo "load_excludes requires one argument"
+		log "${VERBOSITY_ERROR}" "load_excludes requires one argument"
 		return 1
 	fi
-	[ "${VERBOSE,,}" == "true" ] && echo "Loading excludes from file: $1" ||:
+	log "${VERBOSITY_INFO}" "Loading excludes from file: $1"
 	local line
 	while read -r line; do
 		# Ignore comments and blank lines
@@ -52,7 +155,7 @@ while read -r SOURCE; do
 	# Let's be extra cautious rather than assuming.
 	if [ "${SOURCE:0:2}" != "./" ]; then
 		# Unexpected state: fail if this state is entered.
-		[ "${VERBOSE,,}" == "true" ] && >&2 echo "Unexpected first character of find response: ${SOURCE}" ||:
+		log "${VERBOSITY_ERROR}" "Unexpected first character of find response: ${SOURCE}"
 		exit 1
 	fi
 	DESTINATION="${SOURCE:1}"
@@ -60,16 +163,19 @@ while read -r SOURCE; do
 	if [ -e "${DESTINATION}" ]; then
 		if [ -L "${DESTINATION}" ] && [ "$(readlink "${DESTINATION}")" == "${SOURCE}" ]; then
 			# Already set up
-			[ "${VERBOSE,,}" == "true" ] && echo "(${DESTINATION}) already configured: skipping." ||:
+			log "${VERBOSITY_INFO}" "(${DESTINATION}) already configured: skipping."
 		else
-			>&2 echo "(${DESTINATION}) already exists and does not link to the expected location"
+			log "${VERBOSITY_WARNING}" "(${DESTINATION}) already exists and does not link to the expected location"
 			EXIT_CODE=1
 		fi
 		continue
 	fi
-	[ "${VERBOSE,,}" == "true" ] && echo "Installing: ${DESTINATION}" ||:
+	log "${VERBOSITY_NOTICE}" "Installing: ${DESTINATION}"
 	mkdir -p "$(dirname "${DESTINATION}")"
 	ln -s "${SOURCE}" "${DESTINATION}"
 done < <(find . -mindepth 2 -type f "${EXCLUDE_ARGS[@]}")
 
+if [ "${EXIT_CODE}" -ne 0 ]; then
+	log "${VERBOSITY_ERROR}" "Completed with warnings"
+fi
 exit "${EXIT_CODE}"
